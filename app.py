@@ -2,9 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
+import logging
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from prompts import DEFAULT_INTERPRETER_SYSTEM_PROMPT
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Qwen OpenAI-Compatible API")
 
@@ -69,6 +72,7 @@ async def chat_completions(request: ChatCompletionRequest):
     ]
 
     response_text = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    logger.info("Respuesta generada: %r", response_text.strip())
 
     return {
         "id": "chatcmpl-qwen-local",
