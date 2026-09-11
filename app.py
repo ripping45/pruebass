@@ -45,7 +45,9 @@ async def chat_completions(request: ChatCompletionRequest):
     generated_ids = model.generate(
         **model_inputs, 
         max_new_tokens=request.max_tokens or 512,
-        temperature=request.temperature
+        temperature=0.0,         # Cero creatividad para seguir las reglas del prompt al pie de la letra
+        do_sample=False,
+        repetition_penalty=1.1   # Evita que junte palabras o repita estructuras
     )
     generated_ids = [
         output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
