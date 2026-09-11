@@ -1,16 +1,20 @@
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import logging
+import json
 import os
+import threading
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 from prompts import DEFAULT_INTERPRETER_SYSTEM_PROMPT
 
 logger = logging.getLogger("uvicorn.error")
 
 torch.set_num_threads(min(4, os.cpu_count() or 1))
+torch.set_num_interop_threads(min(4, os.cpu_count() or 1))
 
 app = FastAPI(title="Qwen OpenAI-Compatible API")
 
@@ -36,6 +40,7 @@ model = AutoModelForCausalLM.from_pretrained(
     device_map="cpu"
 )
 model.eval()
+generation_lock = threading.Lock()
 
 class ChatMessage(BaseModel):
     role: str
@@ -46,6 +51,7 @@ class ChatCompletionRequest(BaseModel):
     messages: List[ChatMessage]
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 512
+    stream: Optional[bool] = False
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest):
@@ -68,6 +74,73 @@ async def chat_completions(request: ChatCompletionRequest):
 
     # Parámetros optimizados para obediencia estricta y eliminación de artefactos
     max_new_tokens = min(request.max_tokens or 128, 128)
+
+    if request.stream:
+        streamer = TextIteratorStreamer(
+            tokenizer,
+            skip_prompt=True,
+            skip_special_tokens=True,
+        )
+
+        generation_kwargs = {
+            **model_inputs,
+            "max_new_tokens": max_new_tokens,
+            "do_sample": False,
+            "repetition_penalty": 1.1,
+            "pad_token_id": tokenizer.eos_token_id,
+            "use_cache": True,
+            "streamer": streamer,
+        }
+
+        def generate() -> None:
+            with generation_lock, torch.inference_mode():
+                model.generate(**generation_kwargs)
+
+        generation_thread = threading.Thread(target=generate, daemon=True)
+        generation_thread.start()
+
+        def event_stream():
+            accumulated = ""
+            for chunk in streamer:
+                if not chunk:
+                    continue
+                accumulated += chunk
+                payload = {
+                    "id": "chatcmpl-qwen-local",
+                    "object": "chat.completion.chunk",
+                    "model": request.model,
+                    "choices": [{
+                        "index": 0,
+                        "delta": {"content": chunk},
+                        "finish_reason": None,
+                    }],
+                }
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+            logger.info("Respuesta generada: %r", accumulated.strip())
+            final_payload = {
+                "id": "chatcmpl-qwen-local",
+                "object": "chat.completion.chunk",
+                "model": request.model,
+                "choices": [{
+                    "index": 0,
+                    "delta": {},
+                    "finish_reason": "stop",
+                }],
+            }
+            yield f"data: {json.dumps(final_payload, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
     with torch.inference_mode():
         generated_ids = model.generate(
             **model_inputs,

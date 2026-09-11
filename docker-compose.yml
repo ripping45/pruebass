@@ -5,5 +5,9 @@ services:
     ports:
       - "8000:8000"
     shm_size: '2gb'
+    environment:
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
+      TOKENIZERS_PARALLELISM: "false"
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
