@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  qwen-translator:
+    build: .
+    container_name: qwen_translator_api
+    ports:
+      - "8000:8000"
+    shm_size: '2gb'
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
