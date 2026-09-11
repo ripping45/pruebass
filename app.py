@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from prompts import DEFAULT_INTERPRETER_SYSTEM_PROMPT
 
 app = FastAPI(title="Qwen OpenAI-Compatible API")
 
@@ -38,6 +39,13 @@ class ChatCompletionRequest(BaseModel):
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest):
     input_messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+
+    # Keep caller-provided system prompts (including language-specific interpreter rules).
+    if not any(message["role"] == "system" for message in input_messages):
+        input_messages.insert(0, {
+            "role": "system",
+            "content": DEFAULT_INTERPRETER_SYSTEM_PROMPT,
+        })
     
     # Aplica la plantilla oficial de chat de Qwen2.5
     text = tokenizer.apply_chat_template(
