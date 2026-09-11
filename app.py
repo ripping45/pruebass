@@ -56,6 +56,14 @@ class ChatCompletionRequest(BaseModel):
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest):
     input_messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+    user_text = " ".join(message["content"] for message in input_messages if message["role"] == "user")
+    logger.info(
+        "Solicitud recibida: mensajes=%d, user_chars=%d, user_start=%r, user_end=%r",
+        len(input_messages),
+        len(user_text),
+        user_text[:80],
+        user_text[-80:],
+    )
 
     # Keep caller-provided system prompts (including language-specific interpreter rules).
     if not any(message["role"] == "system" for message in input_messages):
@@ -73,7 +81,7 @@ async def chat_completions(request: ChatCompletionRequest):
     model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
     # Parámetros optimizados para obediencia estricta y eliminación de artefactos
-    max_new_tokens = min(request.max_tokens or 128, 128)
+    max_new_tokens = min(request.max_tokens or 512, 512)
 
     if request.stream:
         streamer = TextIteratorStreamer(
@@ -86,7 +94,7 @@ async def chat_completions(request: ChatCompletionRequest):
             **model_inputs,
             "max_new_tokens": max_new_tokens,
             "do_sample": False,
-            "repetition_penalty": 1.1,
+            "repetition_penalty": 1.0,
             "pad_token_id": tokenizer.eos_token_id,
             "use_cache": True,
             "streamer": streamer,
@@ -146,7 +154,7 @@ async def chat_completions(request: ChatCompletionRequest):
             **model_inputs,
             max_new_tokens=max_new_tokens,
             do_sample=False,
-            repetition_penalty=1.1,
+            repetition_penalty=1.0,
             pad_token_id=tokenizer.eos_token_id,
             use_cache=True,
         )
