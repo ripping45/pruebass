@@ -39,16 +39,24 @@ class ChatCompletionRequest(BaseModel):
 async def chat_completions(request: ChatCompletionRequest):
     input_messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
     
-    text = tokenizer.apply_chat_template(input_messages, tokenize=False, add_generation_prompt=True)
+    # Aplica la plantilla oficial de chat de Qwen2.5
+    text = tokenizer.apply_chat_template(
+        input_messages, 
+        tokenize=False, 
+        add_generation_prompt=True
+    )
     model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
+    # Parámetros optimizados para obediencia estricta y eliminación de artefactos
     generated_ids = model.generate(
         **model_inputs, 
-        max_new_tokens=request.max_tokens or 512,
-        temperature=0.0,         # Cero creatividad para seguir las reglas del prompt al pie de la letra
+        max_new_tokens=request.max_tokens or 256,
+        temperature=0.0,            # Determinismo puro (sigue el prompt al 100%)
         do_sample=False,
-        repetition_penalty=1.1   # Evita que junte palabras o repita estructuras
+        repetition_penalty=1.1,     # Evita pegar palabras o repetir estructuras
+        pad_token_id=tokenizer.eos_token_id
     )
+    
     generated_ids = [
         output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
     ]
