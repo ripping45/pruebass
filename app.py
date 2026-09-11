@@ -59,7 +59,6 @@ async def chat_completions(request: ChatCompletionRequest):
     generated_ids = model.generate(
         **model_inputs, 
         max_new_tokens=request.max_tokens or 256,
-        temperature=0.0,            # Determinismo puro (sigue el prompt al 100%)
         do_sample=False,
         repetition_penalty=1.1,     # Evita pegar palabras o repetir estructuras
         pad_token_id=tokenizer.eos_token_id

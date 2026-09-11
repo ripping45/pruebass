@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir torch --extra-index-url https://download.pytorch.
 # Instala el resto de las dependencias
 RUN pip install --no-cache-dir transformers accelerate fastapi "uvicorn[standard]"
 
-COPY app.py .
+COPY app.py prompts.py ./
 
 EXPOSE 8000
 
