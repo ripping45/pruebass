@@ -3,11 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 import logging
+import os
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from prompts import DEFAULT_INTERPRETER_SYSTEM_PROMPT
 
 logger = logging.getLogger("uvicorn.error")
+
+torch.set_num_threads(min(4, os.cpu_count() or 1))
 
 app = FastAPI(title="Qwen OpenAI-Compatible API")
 
@@ -32,6 +35,7 @@ model = AutoModelForCausalLM.from_pretrained(
     torch_dtype="auto",
     device_map="cpu"
 )
+model.eval()
 
 class ChatMessage(BaseModel):
     role: str
@@ -63,13 +67,16 @@ async def chat_completions(request: ChatCompletionRequest):
     model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
     # Parámetros optimizados para obediencia estricta y eliminación de artefactos
-    generated_ids = model.generate(
-        **model_inputs, 
-        max_new_tokens=request.max_tokens or 256,
-        do_sample=False,
-        repetition_penalty=1.1,     # Evita pegar palabras o repetir estructuras
-        pad_token_id=tokenizer.eos_token_id
-    )
+    max_new_tokens = min(request.max_tokens or 128, 128)
+    with torch.inference_mode():
+        generated_ids = model.generate(
+            **model_inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+            repetition_penalty=1.1,
+            pad_token_id=tokenizer.eos_token_id,
+            use_cache=True,
+        )
     
     generated_ids = [
         output_ids[len(input_ids):] for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
