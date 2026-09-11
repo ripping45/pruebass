@@ -5,7 +5,11 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-RUN pip install --no-cache-dir torch transformers accelerate fastapi "uvicorn[standard]"
+# Usa --extra-index-url para permitir que busque librerías comunes en PyPI
+RUN pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu
+
+# Instala el resto de las dependencias
+RUN pip install --no-cache-dir transformers accelerate fastapi "uvicorn[standard]"
 
 COPY app.py .
 
