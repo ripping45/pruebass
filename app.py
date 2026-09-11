@@ -13,10 +13,24 @@ from prompts import DEFAULT_INTERPRETER_SYSTEM_PROMPT
 
 logger = logging.getLogger("uvicorn.error")
 
+# Autenticación de Hugging Face (necesaria para modelos gated como Meta Llama)
+HF_TOKEN = os.environ.get("HF_TOKEN", "")
+if HF_TOKEN:
+    try:
+        from huggingface_hub import login
+        login(token=HF_TOKEN)
+        logger.info("Autenticado en Hugging Face correctamente.")
+    except Exception as e:
+        logger.warning("No se pudo autenticar en Hugging Face: %s", e)
+
 torch.set_num_threads(min(4, os.cpu_count() or 1))
 torch.set_num_interop_threads(min(4, os.cpu_count() or 1))
 
-app = FastAPI(title="Qwen OpenAI-Compatible API")
+# Modelo configurable por variable de entorno
+model_name = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-1.5B-Instruct")
+model_short_name = model_name.split("/")[-1]
+
+app = FastAPI(title=f"Local LLM API — {model_short_name}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,9 +44,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-model_name = "Qwen/Qwen2.5-1.5B-Instruct"
-
-print("Cargando tokenizador y modelo...")
+print(f"Cargando tokenizador y modelo: {model_name}...")
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(
     model_name,
@@ -47,7 +59,7 @@ class ChatMessage(BaseModel):
     content: str
 
 class ChatCompletionRequest(BaseModel):
-    model: Optional[str] = "qwen2.5-1.5b"
+    model: Optional[str] = model_short_name
     messages: List[ChatMessage]
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 512
@@ -72,7 +84,7 @@ async def chat_completions(request: ChatCompletionRequest):
             "content": DEFAULT_INTERPRETER_SYSTEM_PROMPT,
         })
     
-    # Aplica la plantilla oficial de chat de Qwen2.5
+    # Aplica la plantilla oficial de chat del modelo
     text = tokenizer.apply_chat_template(
         input_messages, 
         tokenize=False, 

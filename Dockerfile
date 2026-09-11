@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1
 RUN pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Instala el resto de las dependencias
-RUN pip install --no-cache-dir transformers accelerate fastapi "uvicorn[standard]"
+RUN pip install --no-cache-dir transformers accelerate fastapi "uvicorn[standard]" huggingface_hub
 
 COPY app.py prompts.py ./
 

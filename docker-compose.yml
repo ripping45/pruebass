@@ -6,6 +6,21 @@ services:
       - "8000:8000"
     shm_size: '2gb'
     environment:
+      MODEL_NAME: "Qwen/Qwen2.5-1.5B-Instruct"
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
+      TOKENIZERS_PARALLELISM: "false"
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+
+  mistral-translator:
+    build: .
+    container_name: mistral_translator_api
+    ports:
+      - "8001:8000"
+    shm_size: '8gb'
+    environment:
+      MODEL_NAME: "mistralai/Mistral-7B-Instruct-v0.3"
       OMP_NUM_THREADS: "4"
       MKL_NUM_THREADS: "4"
       TOKENIZERS_PARALLELISM: "false"
