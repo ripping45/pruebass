@@ -81,7 +81,7 @@ async def chat_completions(request: ChatCompletionRequest):
     model_inputs = tokenizer([text], return_tensors="pt").to(model.device)
 
     # Parámetros optimizados para obediencia estricta y eliminación de artefactos
-    max_new_tokens = min(request.max_tokens or 512, 512)
+    max_new_tokens = request.max_tokens or 2048
 
     if request.stream:
         streamer = TextIteratorStreamer(
